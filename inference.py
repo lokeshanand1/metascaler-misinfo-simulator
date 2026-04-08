@@ -29,7 +29,9 @@ from models import (
     MisinfoCrisisAction,
 )
 
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+# The evaluator injects API_BASE_URL for the OpenAI client proxy.
+# We will use ENV_BASE_URL for the local FastAPI server instead.
+ENV_BASE_URL = os.getenv("ENV_BASE_URL", "http://localhost:8000")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
 HF_TOKEN = os.getenv("HF_TOKEN")
 
@@ -39,10 +41,18 @@ _server_process = None
 def create_openai_client(model: str = MODEL_NAME):
     from openai import OpenAI
 
-    if not HF_TOKEN:
-        print("ERROR: HF_TOKEN environment variable not set.", file=sys.stderr)
+    # OpenEnv uses API_KEY and API_BASE_URL for the LiteLLM proxy
+    api_key = os.getenv("API_KEY", os.getenv("HF_TOKEN"))
+    api_base_url = os.getenv("API_BASE_URL")
+
+    if not api_key:
+        print("ERROR: API_KEY or HF_TOKEN environment variable not set.", file=sys.stderr)
         return None
-    return OpenAI(api_key=HF_TOKEN)
+    
+    return OpenAI(
+        api_key=api_key,
+        base_url=api_base_url
+    )
 
 
 def format_observation(observation: dict) -> str:
@@ -371,7 +381,7 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base-url", default=API_BASE_URL)
+    parser.add_argument("--base-url", default=ENV_BASE_URL)
     parser.add_argument("--model", default=MODEL_NAME)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--tasks", nargs="*", default=[
