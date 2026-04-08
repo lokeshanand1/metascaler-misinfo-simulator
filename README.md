@@ -1,3 +1,13 @@
+---
+title: Autonomous Misinfo Crisis Simulator
+emoji: 🛡️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 8000
+pinned: false
+---
+
 # 🛡️ Autonomous Misinformation Crisis Simulator — Advanced Edition
 
 > A research-grade OpenEnv benchmark for evaluating AI moderation systems under real-world constraints.
@@ -77,7 +87,7 @@ misinfo-crisis-simulator/
 ├── __init__.py                   # Package exports
 ├── models.py                     # Pydantic Action/Observation/State models
 ├── client.py                     # OpenEnv HTTP client  
-├── baseline_inference.py         # LLM baseline agent (HF_TOKEN)
+├── inference.py                  # LLM baseline agent (HF_TOKEN)
 ├── test_environment.py           # Comprehensive test suite
 ├── openenv.yaml                  # OpenEnv manifest
 ├── pyproject.toml                # Project metadata
@@ -300,7 +310,7 @@ If you have an OpenAI-compatible endpoint, you can run the baseline reference ag
 
 ```bash
 export HF_TOKEN=your_openai_api_key
-python baseline_inference.py --model gpt-4o-mini --seed 42
+python inference.py --model gpt-4o-mini --seed 42
 ```
 
 Expected output:
