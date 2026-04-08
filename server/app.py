@@ -263,8 +263,12 @@ async def websocket_endpoint(websocket: WebSocket):
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
-if __name__ == "__main__":
+def main():
     import uvicorn
 
     logging.basicConfig(level=logging.INFO)
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+if __name__ == "__main__":
+    main()
