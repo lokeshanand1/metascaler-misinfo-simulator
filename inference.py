@@ -157,10 +157,21 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
     print(f"START Task: {task_id} (seed={seed})")
     print(f"{'='*60}")
 
-    resp = req.post(f"{base_url}/reset", json={
-        "task_id": task_id, "seed": seed, "session_id": session_id
-    })
-    resp.raise_for_status()
+    # Retry /reset request with backoff
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            resp = req.post(f"{base_url}/reset", json={
+                "task_id": task_id, "seed": seed, "session_id": session_id
+            })
+            resp.raise_for_status()
+            break
+        except req.exceptions.RequestException as e:
+            if attempt < max_retries - 1:
+                print(f"  Retry {attempt + 1}/{max_retries}: Server not ready, waiting...")
+                time.sleep(1)
+            else:
+                raise
     observation = resp.json()["observation"]
 
     total_reward = 0.0
@@ -245,6 +256,24 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
     return result
 
 
+def wait_for_server(base_url: str, timeout: int = 30):
+    """Wait for server to be ready."""
+    import requests
+    import time
+
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            resp = requests.get(f"{base_url}/health", timeout=2)
+            if resp.status_code == 200:
+                print(f"Server ready at {base_url}")
+                return
+        except requests.ConnectionError:
+            pass
+        time.sleep(0.5)
+    raise TimeoutError(f"Server not ready after {timeout}s")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default=API_BASE_URL)
@@ -254,6 +283,9 @@ def main():
         "easy_obvious_misinfo", "medium_subtle_misinfo", "hard_cascade_crisis"
     ])
     args = parser.parse_args()
+
+    # Wait for server to be ready
+    wait_for_server(args.base_url)
 
     client = create_openai_client(args.model)
     all_results = []
