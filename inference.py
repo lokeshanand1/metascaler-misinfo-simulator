@@ -154,7 +154,7 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
     import requests as req
 
     print(f"\n{'='*60}")
-    print(f"Task: {task_id} (seed={seed})")
+    print(f"START Task: {task_id} (seed={seed})")
     print(f"{'='*60}")
 
     resp = req.post(f"{base_url}/reset", json={
@@ -205,7 +205,7 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
         if action is None:
             break
 
-        print(f"  Step {step_count}: {action.action_type.value} on {action.post_id}")
+        print(f"STEP {step_count}: {action.action_type.value} on {action.post_id}")
 
         step_resp = req.post(f"{base_url}/step", json={
             "action": action.model_dump(), "session_id": session_id
@@ -241,7 +241,7 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
         "campaigns_total": grade.get("campaigns_total", 0),
     }
 
-    print(f"\n  Final Score: {result['overall_score']:.4f}")
+    print(f"\nEND Final Score: {result['overall_score']:.4f}")
     return result
 
 
