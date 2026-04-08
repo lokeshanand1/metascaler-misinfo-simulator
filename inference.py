@@ -28,15 +28,17 @@ from models import (
     MisinfoCrisisAction,
 )
 
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
+HF_TOKEN = os.getenv("HF_TOKEN")
 
-def create_openai_client(model: str = "gpt-4o-mini"):
+def create_openai_client(model: str = MODEL_NAME):
     from openai import OpenAI
 
-    api_key = os.environ.get("HF_TOKEN")
-    if not api_key:
+    if not HF_TOKEN:
         print("ERROR: HF_TOKEN environment variable not set.")
         sys.exit(1)
-    return OpenAI(api_key=api_key)
+    return OpenAI(api_key=HF_TOKEN)
 
 
 def format_observation(observation: dict) -> str:
@@ -245,8 +247,8 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base-url", default="http://localhost:8000")
-    parser.add_argument("--model", default="gpt-4o-mini")
+    parser.add_argument("--base-url", default=API_BASE_URL)
+    parser.add_argument("--model", default=MODEL_NAME)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--tasks", nargs="*", default=[
         "easy_obvious_misinfo", "medium_subtle_misinfo", "hard_cascade_crisis"
