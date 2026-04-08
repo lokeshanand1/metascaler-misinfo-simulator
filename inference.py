@@ -40,7 +40,7 @@ def create_openai_client(model: str = MODEL_NAME):
     from openai import OpenAI
 
     if not HF_TOKEN:
-        print("ERROR: HF_TOKEN environment variable not set.")
+        print("ERROR: HF_TOKEN environment variable not set.", file=sys.stderr)
         sys.exit(1)
     return OpenAI(api_key=HF_TOKEN)
 
@@ -150,7 +150,7 @@ def parse_llm_action(response_text: str) -> Optional[MisinfoCrisisAction]:
             justification=data.get("justification", ""),
         )
     except (json.JSONDecodeError, KeyError, ValueError) as e:
-        print(f"  ⚠ Parse error: {e}")
+        print(f"  Parse error: {e}", file=sys.stderr)
         return None
 
 
@@ -169,14 +169,14 @@ def ensure_server_running(base_url: str, timeout: int = 180):
         try:
             resp = requests.get(f"{base_url}/health", timeout=5)
             if resp.status_code == 200:
-                print(f"Server already running at {base_url}")
+                print(f"Server already running at {base_url}", file=sys.stderr)
                 return
         except requests.exceptions.RequestException:
             pass
         time.sleep(1)
 
     # 2. Server is not running — start it ourselves
-    print("Server not detected. Starting environment server as subprocess...")
+    print("Server not detected. Starting environment server as subprocess...", file=sys.stderr)
     global _server_process
 
     # Determine project root (same directory as this script)
@@ -197,7 +197,7 @@ def ensure_server_running(base_url: str, timeout: int = 180):
         "--log-level", "info",
     ]
 
-    print(f"Starting server: {' '.join(cmd)}")
+    print(f"Starting server: {' '.join(cmd)}", file=sys.stderr)
     _server_process = subprocess.Popen(
         cmd,
         cwd=project_root,
@@ -212,7 +212,7 @@ def ensure_server_running(base_url: str, timeout: int = 180):
         for line in iter(_server_process.stdout.readline, b""):
             decoded = line.decode(errors="replace").rstrip()
             _server_log_lines.append(decoded)
-            print(f"[server] {decoded}")
+            print(f"[server] {decoded}", file=sys.stderr)
 
     _log_thread = threading.Thread(target=_stream_output, daemon=True)
     _log_thread.start()
@@ -223,10 +223,10 @@ def ensure_server_running(base_url: str, timeout: int = 180):
         # Check if process died early
         if _server_process.poll() is not None:
             _log_thread.join(timeout=2)
-            print(f"ERROR: Server process exited with code {_server_process.returncode}")
-            print("Last server output:")
+            print(f"ERROR: Server process exited with code {_server_process.returncode}", file=sys.stderr)
+            print("Last server output:", file=sys.stderr)
             for line in _server_log_lines[-30:]:
-                print(f"  {line}")
+                print(f"  {line}", file=sys.stderr)
             raise RuntimeError(
                 f"Server process died during startup (exit code {_server_process.returncode})"
             )
@@ -234,16 +234,16 @@ def ensure_server_running(base_url: str, timeout: int = 180):
         try:
             resp = requests.get(f"{base_url}/health", timeout=3)
             if resp.status_code == 200:
-                print(f"Server started and ready at {base_url}")
+                print(f"Server started and ready at {base_url}", file=sys.stderr)
                 return
         except requests.exceptions.RequestException:
             pass
         time.sleep(1.0)
 
     # Timeout — print whatever we got
-    print(f"ERROR: Server not ready after {timeout}s. Last server output:")
+    print(f"ERROR: Server not ready after {timeout}s. Last server output:", file=sys.stderr)
     for line in _server_log_lines[-30:]:
-        print(f"  {line}")
+        print(f"  {line}", file=sys.stderr)
     raise TimeoutError(f"Server not ready after {timeout}s")
 
 
@@ -252,9 +252,7 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
 
     base_url = base_url.rstrip("/")
 
-    print(f"\n{'='*60}")
-    print(f"START Task: {task_id} (seed={seed})")
-    print(f"{'='*60}")
+    print(f"[START] task={task_id} seed={seed}", flush=True)
 
     # Retry /reset request with backoff
     max_retries = 5
@@ -267,11 +265,12 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
             resp.raise_for_status()
             break
         except req.exceptions.RequestException as e:
-            print(f"  Reset attempt {attempt + 1}/{max_retries} failed: {e}")
+            print(f"  Reset attempt {attempt + 1}/{max_retries} failed: {e}", file=sys.stderr)
             if attempt < max_retries - 1:
                 time.sleep(2)
             else:
-                print(f"  ERROR: Could not reset environment after {max_retries} attempts.")
+                print(f"  ERROR: Could not reset environment after {max_retries} attempts.", file=sys.stderr)
+                print(f"[END] task={task_id} score=0.0000 steps=0", flush=True)
                 return {
                     "task_id": task_id, "seed": seed, "steps": 0,
                     "total_reward": 0.0, "overall_score": 0.0,
@@ -305,7 +304,7 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
             )
             llm_response = response.choices[0].message.content
         except Exception as e:
-            print(f"  ⚠ LLM error: {e}")
+            print(f"  LLM error: {e}", file=sys.stderr)
             if observation["active_posts"]:
                 llm_response = json.dumps({
                     "action_type": "ignore",
@@ -326,7 +325,7 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
         if action is None:
             break
 
-        print(f"STEP {step_count}: {action.action_type.value} on {action.post_id}")
+        print(f"[STEP] task={task_id} step={step_count} action={action.action_type.value} post={action.post_id}", flush=True)
 
         try:
             step_resp = req.post(f"{base_url}/step", json={
@@ -335,7 +334,7 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
             step_resp.raise_for_status()
             step_data = step_resp.json()
         except req.exceptions.RequestException as e:
-            print(f"  ⚠ Step API error: {e}")
+            print(f"  Step API error: {e}", file=sys.stderr)
             break
 
         observation = step_data["observation"]
@@ -345,8 +344,8 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
         total_reward += reward
 
         if info.get("truth_revealed"):
-            print(f"    ⚡ Truth revealed: {info['truth_revealed']}")
-        print(f"    → reward={reward:.4f}")
+            print(f"    Truth revealed: {info['truth_revealed']}", file=sys.stderr)
+        print(f"[STEP] task={task_id} step={step_count} reward={reward:.4f}", flush=True)
 
         if done:
             final_info = info
@@ -366,7 +365,7 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
         "campaigns_total": grade.get("campaigns_total", 0),
     }
 
-    print(f"\nEND Final Score: {result['overall_score']:.4f}")
+    print(f"[END] task={task_id} score={result['overall_score']:.4f} steps={step_count}", flush=True)
     return result
 
 
@@ -385,7 +384,7 @@ def main():
         try:
             ensure_server_running(args.base_url)
         except (TimeoutError, RuntimeError) as e:
-            print(f"FATAL: Could not start server: {e}")
+            print(f"FATAL: Could not start server: {e}", file=sys.stderr)
             # Output zero scores so the validator gets valid JSON output
             output = {
                 "model": args.model, "seed": args.seed,
@@ -408,7 +407,7 @@ def main():
                 )
                 all_results.append(result)
             except Exception as e:
-                print(f"ERROR in task {task_id}: {e}")
+                print(f"ERROR in task {task_id}: {e}", file=sys.stderr)
                 all_results.append({
                     "task_id": task_id, "seed": args.seed, "steps": 0,
                     "total_reward": 0.0, "overall_score": 0.0,
@@ -419,17 +418,17 @@ def main():
                     "campaigns_total": 0,
                 })
 
-        print(f"\n{'='*80}")
-        print("BASELINE RESULTS — ADVANCED EDITION")
-        print(f"{'='*80}")
-        print(f"Model: {args.model} | Seed: {args.seed}\n")
+        print(f"\n{'='*80}", file=sys.stderr)
+        print("BASELINE RESULTS — ADVANCED EDITION", file=sys.stderr)
+        print(f"{'='*80}", file=sys.stderr)
+        print(f"Model: {args.model} | Seed: {args.seed}\n", file=sys.stderr)
 
         header = (
             f"{'Task':<28} {'Score':>6} {'Det':>5} {'Tim':>5} "
             f"{'Pre':>5} {'Spr':>5} {'Cam':>5} {'Jst':>5} {'Tru':>5}"
         )
-        print(header)
-        print("-" * len(header))
+        print(header, file=sys.stderr)
+        print("-" * len(header), file=sys.stderr)
 
         for r in all_results:
             print(
@@ -437,11 +436,12 @@ def main():
                 f"{r['detection_score']:>5.3f} {r['timing_score']:>5.3f} "
                 f"{r['precision_score']:>5.3f} {r['spread_score']:>5.3f} "
                 f"{r['campaign_score']:>5.3f} {r['justification_score']:>5.3f} "
-                f"{r['trust_score']:>5.3f}"
+                f"{r['trust_score']:>5.3f}",
+                file=sys.stderr
             )
 
         avg = sum(r["overall_score"] for r in all_results) / len(all_results) if all_results else 0
-        print(f"\n{'Average':<28} {avg:>6.3f}")
+        print(f"\n{'Average':<28} {avg:>6.3f}", file=sys.stderr)
 
         output = {
             "model": args.model, "seed": args.seed,
@@ -450,10 +450,10 @@ def main():
         }
         with open("baseline_results.json", "w") as f:
             json.dump(output, f, indent=2)
-        print(f"\nSaved to baseline_results.json")
+        print(f"\nSaved to baseline_results.json", file=sys.stderr)
 
     except Exception as e:
-        print(f"FATAL ERROR: {e}")
+        print(f"FATAL ERROR: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc()
         # Exit with 0 so the validator doesn't see an unhandled exception
@@ -462,7 +462,7 @@ def main():
     finally:
         # Clean up server subprocess if we started one
         if _server_process is not None:
-            print("Shutting down server subprocess...")
+            print("Shutting down server subprocess...", file=sys.stderr)
             _server_process.terminate()
             try:
                 _server_process.wait(timeout=5)
