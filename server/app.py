@@ -110,7 +110,7 @@ async def health():
 # ── Reset ──────────────────────────────────────────────────────────────────────
 
 @app.post("/reset", response_model=ResetResult)
-async def reset(request: Optional[ResetRequest] = None):
+async def reset(request: ResetRequest = ResetRequest()):
     """
     Reset the environment for a new episode.
 
@@ -120,9 +120,6 @@ async def reset(request: Optional[ResetRequest] = None):
     - hard_cascade_crisis: Coordinated campaigns, cascading, tight budget, delayed truth
     """
     try:
-        if request is None:
-            request = ResetRequest()
-            
         session_id = request.session_id or "default"
         env = get_or_create_env(session_id)
         result = env.reset(task_id=request.task_id, seed=request.seed)
