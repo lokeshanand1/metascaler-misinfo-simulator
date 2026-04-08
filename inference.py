@@ -161,9 +161,9 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
     max_retries = 5
     for attempt in range(max_retries):
         try:
-            resp = req.post(f"{base_url}/reset", json={
+            resp = req.post(f"{base_url.rstrip('/')}/reset", json={
                 "task_id": task_id, "seed": seed, "session_id": session_id
-            })
+            }, timeout=10)
             resp.raise_for_status()
             break
         except req.exceptions.RequestException as e:
@@ -218,11 +218,15 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
 
         print(f"STEP {step_count}: {action.action_type.value} on {action.post_id}")
 
-        step_resp = req.post(f"{base_url}/step", json={
-            "action": action.model_dump(), "session_id": session_id
-        })
-        step_resp.raise_for_status()
-        step_data = step_resp.json()
+        try:
+            step_resp = req.post(f"{base_url.rstrip('/')}/step", json={
+                "action": action.model_dump(), "session_id": session_id
+            }, timeout=10)
+            step_resp.raise_for_status()
+            step_data = step_resp.json()
+        except req.exceptions.RequestException as e:
+            print(f"  ⚠ Step API error: {e}")
+            break
 
         observation = step_data["observation"]
         reward = step_data["reward"]
@@ -256,11 +260,12 @@ def run_episode(base_url, task_id, seed, client, model, session_id):
     return result
 
 
-def wait_for_server(base_url: str, timeout: int = 30):
+def wait_for_server(base_url: str, timeout: int = 60):
     """Wait for server to be ready."""
     import requests
     import time
-
+    
+    base_url = base_url.rstrip("/")
     start = time.time()
     while time.time() - start < timeout:
         try:
@@ -268,9 +273,10 @@ def wait_for_server(base_url: str, timeout: int = 30):
             if resp.status_code == 200:
                 print(f"Server ready at {base_url}")
                 return
-        except requests.ConnectionError:
+            print(f"Waiting for server... Status: {resp.status_code}")
+        except requests.exceptions.RequestException as e:
             pass
-        time.sleep(0.5)
+        time.sleep(1.0)
     raise TimeoutError(f"Server not ready after {timeout}s")
 
 
