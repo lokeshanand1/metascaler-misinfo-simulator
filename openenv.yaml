@@ -1,0 +1,149 @@
+env_name: misinfo-crisis-simulator
+display_name: Autonomous Misinformation Crisis Simulator — Advanced Edition
+version: 2.0.0
+description: >
+  A research-grade OpenEnv benchmark for evaluating AI moderation systems.
+  Features coordinated adversarial campaigns, multi-modal posts (text + image),
+  policy constraints, public reaction simulation, explainability requirements,
+  delayed ground truth, and resource budget management. Posts spread dynamically
+  with cascading effects, and the agent's actions influence propagation,
+  public trust, and platform health in real-time.
+
+author: MetaScaler Team
+tags:
+  - openenv
+  - misinformation
+  - moderation
+  - social-media
+  - multi-step
+  - safety
+  - campaigns
+  - multi-modal
+  - explainability
+
+server:
+  entrypoint: server/app.py
+  port: 8000
+  health_endpoint: /health
+
+endpoints:
+  reset:
+    method: POST
+    path: /reset
+    description: Start a new episode with a task and seed
+  step:
+    method: POST
+    path: /step
+    description: Submit a moderation action with justification
+  state:
+    method: GET
+    path: /state
+    description: Get the full internal state (ground truth, campaigns, trust)
+  health:
+    method: GET
+    path: /health
+    description: Server health check
+  tasks:
+    method: GET
+    path: /tasks
+    description: List available tasks with metadata
+
+action_space:
+  type: object
+  required: [action_type, post_id, justification]
+  properties:
+    action_type:
+      type: string
+      enum: [label, reduce_visibility, add_context, ignore]
+    post_id:
+      type: string
+    parameters:
+      type: object
+      properties:
+        label_type:
+          type: string
+          enum: [misleading, false, safe]
+        context_note:
+          type: string
+    justification:
+      type: string
+      description: Required structured explanation for the action (graded)
+
+observation_space:
+  type: object
+  properties:
+    active_posts:
+      type: array
+      description: Posts with content, image_description, engagement, signals, verification status
+    time_step:
+      type: integer
+    max_steps:
+      type: integer
+    remaining_action_budget:
+      type: integer
+      description: Non-ignore actions remaining this step
+    user_trust_score:
+      type: number
+      description: Public trust in platform (0-1)
+    backlash_score:
+      type: number
+      description: Public backlash level (0-1)
+    trend_indicators:
+      type: object
+      description: Aggregate platform trends and suspected campaigns
+    recently_verified:
+      type: array
+      description: Post IDs whose ground truth was just revealed
+
+tasks:
+  - id: easy_obvious_misinfo
+    difficulty: easy
+    description: Obvious misinformation, clear signals, generous budget
+    max_steps: 10
+    action_budget: 5
+    campaigns: 0
+
+  - id: medium_subtle_misinfo
+    difficulty: medium
+    description: Subtle misinfo, multi-modal confusion, small campaign
+    max_steps: 15
+    action_budget: 3
+    campaigns: 1
+
+  - id: hard_cascade_crisis
+    difficulty: hard
+    description: Coordinated campaigns, cascading, tight budget, delayed truth
+    max_steps: 20
+    action_budget: 2
+    campaigns: 2
+
+reward:
+  type: dense
+  range: [-0.6, 0.75]
+  components:
+    - name: detection_accuracy
+      weight: 0.20
+    - name: timing_bonus
+      weight: 0.15
+    - name: precision
+      weight: 0.15
+    - name: spread_minimization
+      weight: 0.15
+    - name: campaign_detection
+      weight: 0.15
+    - name: justification_quality
+      weight: 0.10
+    - name: trust_balance
+      weight: 0.10
+
+grading:
+  type: deterministic
+  output_range: [0.0, 1.0]
+  criteria:
+    - Detection accuracy
+    - Timing of intervention
+    - Precision vs recall balance
+    - Misinformation spread reduction
+    - Campaign detection success
+    - Explanation quality
+    - Trust vs censorship balance
