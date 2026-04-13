@@ -357,3 +357,6 @@ Exposed endpoints:
 ## 📜 License
 
 MIT License
+
+## DEVELOPER
+Developed by Lokesh and Tejas Vilas Kondhalkar.
